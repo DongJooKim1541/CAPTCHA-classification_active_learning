@@ -152,7 +152,6 @@ def margin_query(model, device, data_loader, query_size):
             # print("logits: ", logits.size()) #torch.Size([T, batch_size, num_chars])
             probabilities = F.softmax(logits,2)
             # print("probabilities: ", probabilities.size()) # #torch.Size([T, batch_size, num_chars])
-            label_tokens = F.softmax(logits, 2).argmax(2)  # [T, batch_size], softmax for num_chars
             # Select the top two class confidences for each sample
             toptwo = torch.topk(probabilities, 2, dim=2)[0]
             # print("toptwo.size(): ",toptwo.size()) # toptwo.size():  torch.Size([T, batch_size, 2])
@@ -181,7 +180,68 @@ def margin_query(model, device, data_loader, query_size):
     # Return the indices corresponding to the lowest `query_size` margins
     return index[sorted_pool][0:query_size]
 
-def query_the_oracle(model,device,dataset,query_size,pool_size, query_strategy='random',interactive=True):
+def least_confidence_query(model, device, pool_loader, query_size):
+    confidences = []
+    indices = []
+
+    model.eval()
+
+    with torch.no_grad():
+        for batch in pool_loader:
+            data, _, idx = batch
+            logits = model(data.to(device))
+            probabilities = F.softmax(logits,2)
+            # Keep only the top class confidence for each sample
+            most_probable = torch.max(probabilities, dim=2)[0]
+            # print("most_probable: ",most_probable.size()) # torch.Size([T, batch_size])
+            # print("list(most_probable[0].size()).__getitem__(0): ",list(most_probable[0].size()).__getitem__(0))
+            for i in range(list(most_probable[0].size()).__getitem__(0)):
+                sum = 0
+                for j in range(5):
+                    # print("most_probable[j][i].item(): ",most_probable[j][i].item())
+                    sum += most_probable[j][i].item()
+                # print("sum: ",sum)
+                confidences.append(sum)
+            indices.extend(idx.tolist())
+
+    conf = np.asarray(confidences)
+    #print("conf: ",len(conf)) # query size
+    index = np.asarray(indices)
+    #print("len(index): ",len(index)) # query size
+    sorted_pool = np.argsort(conf)
+    # Return the indices corresponding to the lowest `query_size` confidences
+    return index[sorted_pool][0:query_size]
+
+def entropy_sampling_query(model, device, pool_loader, query_size):
+    entropy_list = []
+    indices = []
+    model.eval()
+    with torch.no_grad():
+        for batch in pool_loader:
+            data, label, idx = batch
+            logits = model(data.to(device))
+            probabilities = F.softmax(logits, 2)
+            # print("probabilities: ", probabilities.size()) # #torch.Size([T, batch_size, num_chars])
+            # Select the top entropy
+            cal_entropy=torch.sum(-probabilities*torch.log(probabilities),2)
+            # print("cal_entropy: ",cal_entropy.size()) # torch.Size([T, batch_size])
+            mean_entropy=torch.mean(cal_entropy,0)
+            # print("mean_entropy: ", mean_entropy.size()) #torch.Size([batch_size])
+            for i in range(len(label)):
+                mean_entropy_sub=mean_entropy[i]
+                entropy_list.append(mean_entropy_sub)
+            indices.extend((idx.tolist()))
+
+    entropies = np.asarray(entropy_list)
+    print("entropies: ",len(entropies)) # query_size
+    index = np.asarray(indices)
+    print("index: ",len(index)) # query_size
+    sorted_pool = np.argsort(entropies)
+    # print("sorted_pool: ", sorted_pool)
+    # Return the indices corresponding to the lowest `query_size` margins
+    return index[sorted_pool[::-1]][0:query_size]
+
+def query_the_oracle(model,device,dataset,query_size,pool_size, query_strategy,interactive=True):
     unlabeled_idx = np.nonzero(dataset.unlabeled_mask)[0]
     # print("len(unlabeled_idx): ", len(unlabeled_idx))
     # Select a pool of samples to query from
@@ -194,14 +254,13 @@ def query_the_oracle(model,device,dataset,query_size,pool_size, query_strategy='
     if query_strategy=="margin":
         sample_idx = margin_query(model, device, pool_loader, query_size)
         #print("sample_idx: ",sample_idx)
-        #print("Ask ",len(sample_idx)," label of image")
-    else:
-        sample_idx = margin_query(model, device, pool_loader, query_size)
-    """
-    elif query_strategy == 'least_confidence':
-        sample_idx = least_confidence_query(model, device, pool_loader, query_size)
-    """
 
+    elif query_strategy == "least_confidence":
+        sample_idx = least_confidence_query(model, device, pool_loader, query_size)
+    else:
+        sample_idx = entropy_sampling_query(model, device, pool_loader, query_size)
+
+    print("Ask ", len(sample_idx), " label of image")
     # Query the samples, one at a time
     for sample in sample_idx:
         if interactive:
@@ -291,8 +350,8 @@ def test(model, device, test_loader):
 
 
 if __name__ == '__main__':
-    query_size = 1000
-    pool_size = 5000
+    query_size = 5000
+    pool_size = 2000
     query_strategy = "margin"
     for epoch in range(num_epochs):
         query_the_oracle(crnn, device, trainset, query_size=query_size, pool_size=pool_size, query_strategy=query_strategy,
