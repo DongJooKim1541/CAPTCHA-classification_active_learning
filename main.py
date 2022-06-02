@@ -351,7 +351,7 @@ def test(model, device, test_loader):
 
 if __name__ == '__main__':
     query_size = 5000
-    pool_size = 2000
+    pool_size = 5000
     query_strategy = "margin"
     for epoch in range(num_epochs):
         query_the_oracle(crnn, device, trainset, query_size=query_size, pool_size=pool_size, query_strategy=query_strategy,
