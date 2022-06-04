@@ -29,8 +29,12 @@ CHAR_NUM=5
 """Data preprocessing"""
 trainset = CAPTCHADataset(test=False)
 testset = CAPTCHADataset(test=True)
-train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=0, shuffle=True)
-test_loader = DataLoader(testset, batch_size=batch_size, num_workers=0, shuffle=True)
+
+unlabeled_idx = np.nonzero(trainset.unlabeled_mask)[0]
+pool_idx = random.sample(range(1, len(unlabeled_idx)), 10000)
+
+train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=4, sampler=SubsetRandomSampler(unlabeled_idx[pool_idx]))
+test_loader = DataLoader(testset, batch_size=batch_size, num_workers=0)
 
 """Confirm data"""
 print("len(train_loader), len(test_loader): ", len(train_loader), len(test_loader))
@@ -233,9 +237,9 @@ def entropy_sampling_query(model, device, pool_loader, query_size):
             indices.extend((idx.tolist()))
 
     entropies = np.asarray(entropy_list)
-    print("entropies: ",len(entropies)) # query_size
+    #print("entropies: ",len(entropies)) # query_size
     index = np.asarray(indices)
-    print("index: ",len(index)) # query_size
+   #print("index: ",len(index)) # query_size
     sorted_pool = np.argsort(entropies)
     # print("sorted_pool: ", sorted_pool)
     # Return the indices corresponding to the lowest `query_size` margins
@@ -258,7 +262,7 @@ def query_the_oracle(model,device,dataset,query_size,pool_size, query_strategy,i
     elif query_strategy == "least_confidence":
         sample_idx = least_confidence_query(model, device, pool_loader, query_size)
     else:
-        sample_idx = entropy_sampling_query(model, device, pool_loader, query_size)
+        sample_idx = entropy_sampling_query(model, device, pool_loader, query_size) # entropy
 
     print("Ask ", len(sample_idx), " label of image")
     # Query the samples, one at a time
@@ -275,11 +279,11 @@ def query_the_oracle(model,device,dataset,query_size,pool_size, query_strategy,i
 
 def train(model, device, labeled_loader, optimizer):
     model.train()
-
+    indices = []
     epoch_loss_list = []
     train_acc_list = []
     num_updates_epoch = 0
-    for image, label, _ in labeled_loader:
+    for image, label, idx in labeled_loader:
         optimizer.zero_grad()
         label_logits = model(image.to(device))
         label_pred = decode_predictions(label_logits.cpu())
@@ -298,6 +302,7 @@ def train(model, device, labeled_loader, optimizer):
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), clip_norm)
         optimizer.step()
+        indices.extend((idx.tolist()))
     # Mean the iteration loss to 1 epoch loss
     epoch_loss = np.mean(epoch_loss_list)
     epoch_acc = np.mean(train_acc_list)
@@ -307,7 +312,8 @@ def train(model, device, labeled_loader, optimizer):
     train_epoch_acc.append(epoch_acc)
     num_updates_epochs.append(num_updates_epoch)
     lr_scheduler.step(epoch_loss)
-
+    index = np.asarray(indices)
+    return index
 
 def test(model, device, test_loader):
     model.eval()
@@ -348,22 +354,31 @@ def test(model, device, test_loader):
 
 
 
-
 if __name__ == '__main__':
-    query_size = 5000
+    query_size = 2000
     pool_size = 5000
     query_strategy = "margin"
     for epoch in range(num_epochs):
-        query_the_oracle(crnn, device, trainset, query_size=query_size, pool_size=pool_size, query_strategy=query_strategy,
+        if epoch > 1:
+            query_the_oracle(crnn, device, trainset, query_size=query_size, pool_size=pool_size, query_strategy=query_strategy,
                          interactive=True)
 
-        # Train the model on the data that has been labeled so far:
-        labeled_idx = np.where(trainset.unlabeled_mask == 0)[0]
-        labeled_loader = DataLoader(trainset, batch_size=batch_size, num_workers=0,
-                                    sampler=SubsetRandomSampler(labeled_idx))
+            # Train the model on the data that has been labeled so far:
+            labeled_idx = np.where(trainset.unlabeled_mask == 0)[0]
+            labeled_loader = DataLoader(trainset, batch_size=batch_size, num_workers=0, sampler=SubsetRandomSampler(labeled_idx))
+            train(crnn, device, labeled_loader, optimizer)
+            test(crnn, device, test_loader)
+        else:
+            idx=train(crnn, device, train_loader, optimizer)
+            for sample in idx:
+                    img_name = trainset.display(sample)
+                    new_label = img_name.split(".")[0]
+                    trainset.update_label(sample, new_label)
 
-        train(crnn, device, labeled_loader, optimizer)
-        test(crnn, device, test_loader)
+            test(crnn, device, test_loader)
+
+
+
 
 
     fig = plt.figure(figsize=(12, 20))
