@@ -44,17 +44,17 @@ Least confidence(Done)
 
 ## Experimental Results
 
-<img src = "./Query Strategy.PNG" width="30%"> 
+<img src = "./Query Strategy.PNG" width="50%"> 
 Query Strategy
 
 <br/>
 <br/>
 
-<img src = "./Unlabeled Pool Size.png" width="70%"> 
+<img src = "./Unlabeled Pool Size.PNG" width="50%"> 
 Unlabeled Pool Size
 
 <br/>
 <br/>
 
-<img src = "./Number of Queries.png" width="70%"> 
+<img src = "./Number of Queries.PNG" width="50%"> 
 Number of Queries
