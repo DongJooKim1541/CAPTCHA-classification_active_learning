@@ -40,3 +40,21 @@ Margin sampling(Done)<br/>
 Entropy(Done)<br/>
 Least confidence(Done)
 
+<br/>
+
+## Experimental Results
+
+<img src = "./Query Strategy.PNG" width="30%"> 
+Query Strategy
+
+<br/>
+<br/>
+
+<img src = "./Unlabeled Pool Size.png" width="70%"> 
+Unlabeled Pool Size
+
+<br/>
+<br/>
+
+<img src = "./Number of Queries.png" width="70%"> 
+Number of Queries
