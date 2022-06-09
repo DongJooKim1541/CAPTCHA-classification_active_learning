@@ -24,7 +24,7 @@ lr = 0.001
 weight_decay = 1e-3
 clip_norm = 5
 
-CHAR_NUM=5
+CHAR_NUM = 5
 
 """Data preprocessing"""
 trainset = CAPTCHADataset(test=False)
@@ -33,13 +33,14 @@ testset = CAPTCHADataset(test=True)
 unlabeled_idx = np.nonzero(trainset.unlabeled_mask)[0]
 pool_idx = random.sample(range(1, len(unlabeled_idx)), 10000)
 
-train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=4, sampler=SubsetRandomSampler(unlabeled_idx[pool_idx]))
+train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=4,
+                          sampler=SubsetRandomSampler(unlabeled_idx[pool_idx]))
 test_loader = DataLoader(testset, batch_size=batch_size, num_workers=0)
 
 """Confirm data"""
 print("len(train_loader), len(test_loader): ", len(train_loader), len(test_loader))
 
-image, label,idx= iter(train_loader).__next__()
+image, label, idx = iter(train_loader).__next__()
 print("image.size(), label, idx: ", image.size(), label, idx)
 
 num_chars = len(char2idx)
@@ -76,7 +77,7 @@ def encode_label(label):
     label_targets_lens = torch.IntTensor(label_targets_lens)
     # print(label_targets_lens) # tensor([5, 5,...,5], dtype=torch.int32)
     label_concat = "".join(label)
-    #print(label_concat) # v42r81I8r2226378o...
+    # print(label_concat) # v42r81I8r2226378o...
     label_targets = [char2idx[c] for c in label_concat]
     # print(label_targets) # [58, 5, 3, 54, 9, 2,...,10, 7, 2]
     label_targets = torch.IntTensor(label_targets)
@@ -101,14 +102,14 @@ def compute_loss(label, label_logits):
 
 
 """Compute loss"""
-#compute_loss(label, label_logits)
+# compute_loss(label, label_logits)
 
 """decode prediction labels to text"""
 
 
 def decode_predictions(label_logits):
     label_tokens = F.softmax(label_logits, 2).argmax(2)  # [T, batch_size], softmax for num_chars
-    #print(label_tokens)
+    # print(label_tokens)
     # print(F.softmax(label_logits, 2).size()) #torch.Size([T, batch_size, num_chars])
     # print("F.softmax(label_logits, 2).argmax(0)", F.softmax(label_logits, 2).argmax(0)) #[batch_size,num_chars], max of T
     # print("F.softmax(label_logits, 2).argmax(1)",F.softmax(label_logits, 2).argmax(1)) #[T,num_chars], max of batch_size
@@ -119,15 +120,15 @@ def decode_predictions(label_logits):
     # print("label_tokens: ", label_tokens) # [batch_size, T]
     # decode idx to char
     label_tokens_new = []
-    #print("label_tokens: ",label_tokens)
+    # print("label_tokens: ",label_tokens)
     for text_tokens in label_tokens:
-        #print("text_tokens: ",text_tokens)
+        # print("text_tokens: ",text_tokens)
         text = [idx2char[idx] for idx in text_tokens]
         text = "".join(text)
-        #print("text: ",text)
+        # print("text: ",text)
         label_tokens_new.append(text)
 
-    #print("label_tokens_new: ", label_tokens_new)
+    # print("label_tokens_new: ", label_tokens_new)
     return label_tokens_new
 
 
@@ -142,6 +143,7 @@ def compare_label(label, label_pred):
 
     return correct, len(label_pred)
 
+
 def margin_query(model, device, data_loader, query_size):
     margins = []
     indices = []
@@ -154,35 +156,36 @@ def margin_query(model, device, data_loader, query_size):
             # print("data, idx: ",len(data), len(idx)) # batch_size batch_size
             logits = model(data.to(device))
             # print("logits: ", logits.size()) #torch.Size([T, batch_size, num_chars])
-            probabilities = F.softmax(logits,2)
+            probabilities = F.softmax(logits, 2)
             # print("probabilities: ", probabilities.size()) # #torch.Size([T, batch_size, num_chars])
             # Select the top two class confidences for each sample
             toptwo = torch.topk(probabilities, 2, dim=2)[0]
             # print("toptwo.size(): ",toptwo.size()) # toptwo.size():  torch.Size([T, batch_size, 2])
-            #print("toptwo: ",toptwo)
+            # print("toptwo: ",toptwo)
 
             # Compute the margins = differences between the two top confidences
-            differences = toptwo[:,:, 0] - toptwo[:,:, 1]
+            differences = toptwo[:, :, 0] - toptwo[:, :, 1]
             # print("differences.size(): ",differences.size()) # [T, batch_size]
             # print("differences[0].size(): ", list(differences[0].size()).__getitem__(0)) # batch_size
             for i in range(list(differences[0].size()).__getitem__(0)):
-                sum=0
+                sum = 0
                 for j in range(5):
-                    #print("differences[j][i].item(): ",differences[j][i].item())
-                    sum+=differences[j][i].item()
-                #print("sum: ",sum)
+                    # print("differences[j][i].item(): ",differences[j][i].item())
+                    sum += differences[j][i].item()
+                # print("sum: ",sum)
                 margins.append(sum)
             indices.extend(idx.tolist())
-            #print("list(idx): ", list(idx))
+            # print("list(idx): ", list(idx))
 
     margin = np.asarray(margins)
-    #print("margins: ",len(margin))
+    # print("margins: ",len(margin))
     index = np.asarray(indices)
-    #print("index: ", index)
+    # print("index: ", index)
     sorted_pool = np.argsort(margin)
-    #print("sorted_pool: ", sorted_pool)
+    # print("sorted_pool: ", sorted_pool)
     # Return the indices corresponding to the lowest `query_size` margins
     return index[sorted_pool][0:query_size]
+
 
 def least_confidence_query(model, device, pool_loader, query_size):
     confidences = []
@@ -194,7 +197,7 @@ def least_confidence_query(model, device, pool_loader, query_size):
         for batch in pool_loader:
             data, _, idx = batch
             logits = model(data.to(device))
-            probabilities = F.softmax(logits,2)
+            probabilities = F.softmax(logits, 2)
             # Keep only the top class confidence for each sample
             most_probable = torch.max(probabilities, dim=2)[0]
             # print("most_probable: ",most_probable.size()) # torch.Size([T, batch_size])
@@ -209,12 +212,13 @@ def least_confidence_query(model, device, pool_loader, query_size):
             indices.extend(idx.tolist())
 
     conf = np.asarray(confidences)
-    #print("conf: ",len(conf)) # query size
+    # print("conf: ",len(conf)) # query size
     index = np.asarray(indices)
-    #print("len(index): ",len(index)) # query size
+    # print("len(index): ",len(index)) # query size
     sorted_pool = np.argsort(conf)
     # Return the indices corresponding to the lowest `query_size` confidences
     return index[sorted_pool][0:query_size]
+
 
 def entropy_sampling_query(model, device, pool_loader, query_size):
     entropy_list = []
@@ -227,55 +231,75 @@ def entropy_sampling_query(model, device, pool_loader, query_size):
             probabilities = F.softmax(logits, 2)
             # print("probabilities: ", probabilities.size()) # #torch.Size([T, batch_size, num_chars])
             # Select the top entropy
-            cal_entropy=torch.sum(-probabilities*torch.log(probabilities),2)
+            cal_entropy = torch.sum(-probabilities * torch.log(probabilities), 2)
             # print("cal_entropy: ",cal_entropy.size()) # torch.Size([T, batch_size])
-            mean_entropy=torch.mean(cal_entropy,0)
+            mean_entropy = torch.mean(cal_entropy, 0)
             # print("mean_entropy: ", mean_entropy.size()) #torch.Size([batch_size])
             for i in range(len(label)):
-                mean_entropy_sub=mean_entropy[i]
+                mean_entropy_sub = mean_entropy[i]
                 entropy_list.append(mean_entropy_sub)
             indices.extend((idx.tolist()))
 
     entropies = np.asarray(entropy_list)
-    #print("entropies: ",len(entropies)) # query_size
+    # print("entropies: ",len(entropies)) # query_size
     index = np.asarray(indices)
-   #print("index: ",len(index)) # query_size
+    # print("index: ",len(index)) # query_size
     sorted_pool = np.argsort(entropies)
     # print("sorted_pool: ", sorted_pool)
     # Return the indices corresponding to the lowest `query_size` margins
     return index[sorted_pool[::-1]][0:query_size]
 
-def query_the_oracle(model,device,dataset,query_size,pool_size, query_strategy,interactive=True):
+
+def random_query(pool_loader, query_size):
+    sample_idx = []
+
+    # Because the data has already been shuffled inside the dataloader
+    # we can simply return the query size first samples from it for batch in data_loader
+    for batch in pool_loader:
+        _, _, idx = batch
+        sample_idx.extend(idx.tolist())
+
+        if len(sample_idx) >= query_size:
+            break
+    return sample_idx[0:query_size]
+
+
+def query_the_oracle(model, device, dataset, query_size, pool_size, query_strategy, interactive=True):
     unlabeled_idx = np.nonzero(dataset.unlabeled_mask)[0]
     # print("len(unlabeled_idx): ", len(unlabeled_idx))
     # Select a pool of samples to query from
-    if len(unlabeled_idx)>pool_size:
+    if len(unlabeled_idx) > pool_size:
         pool_idx = random.sample(range(1, len(unlabeled_idx)), pool_size)
-        pool_loader = DataLoader(dataset, batch_size=batch_size, num_workers=4, sampler=SubsetRandomSampler(unlabeled_idx[pool_idx]))
+        pool_loader = DataLoader(dataset, batch_size=batch_size, num_workers=4,
+                                 sampler=SubsetRandomSampler(unlabeled_idx[pool_idx]))
     else:
-        pool_loader = DataLoader(dataset, batch_size=batch_size, num_workers=4, sampler=SubsetRandomSampler(unlabeled_idx))
+        pool_loader = DataLoader(dataset, batch_size=batch_size, num_workers=4,
+                                 sampler=SubsetRandomSampler(unlabeled_idx))
 
-    if query_strategy=="margin":
+    if query_strategy == "margin":
         sample_idx = margin_query(model, device, pool_loader, query_size)
-        #print("sample_idx: ",sample_idx)
+        # print("sample_idx: ",sample_idx)
 
     elif query_strategy == "least_confidence":
         sample_idx = least_confidence_query(model, device, pool_loader, query_size)
+    elif query_strategy == "entropy":
+        sample_idx = entropy_sampling_query(model, device, pool_loader, query_size)  # entropy
     else:
-        sample_idx = entropy_sampling_query(model, device, pool_loader, query_size) # entropy
+        sample_idx = random_query(pool_loader, query_size)  # random
 
     print("Ask ", len(sample_idx), " label of image")
     # Query the samples, one at a time
     for sample in sample_idx:
         if interactive:
-            img_name=dataset.display(sample)
-            #print("What is the class of this image?")
-            #print(img_name.split(".")[0])
+            img_name = dataset.display(sample)
+            # print("What is the class of this image?")
+            # print(img_name.split(".")[0])
             new_label = img_name.split(".")[0]
-            dataset.update_label(sample,new_label)
+            dataset.update_label(sample, new_label)
 
         else:
             dataset.label_from_filename(sample)
+
 
 def train(model, device, labeled_loader, optimizer):
     model.train()
@@ -315,6 +339,7 @@ def train(model, device, labeled_loader, optimizer):
     index = np.asarray(indices)
     return index
 
+
 def test(model, device, test_loader):
     model.eval()
 
@@ -347,39 +372,35 @@ def test(model, device, test_loader):
             test_acc_iteration_list.append(test_accuracy)
         test_accuracy = np.mean(test_acc_iteration_list)
         test_loss = np.mean(test_epoch_loss_list)
-        print("Epoch:{}    Test loss:{}    Test acc:{}".format(epoch+1, test_loss, test_accuracy))
+        print("Epoch:{}    Test loss:{}    Test acc:{}".format(epoch + 1, test_loss, test_accuracy))
         test_accuracy_list.append(test_accuracy)
         test_loss_list.append(test_loss)
 
 
-
-
 if __name__ == '__main__':
-    query_size = 2000
-    pool_size = 5000
-    query_strategy = "margin"
+    query_size = 500
+    pool_size = 2000
+    query_strategy = "random"
     for epoch in range(num_epochs):
         if epoch > 1:
-            query_the_oracle(crnn, device, trainset, query_size=query_size, pool_size=pool_size, query_strategy=query_strategy,
-                         interactive=True)
+            query_the_oracle(crnn, device, trainset, query_size=query_size, pool_size=pool_size,
+                             query_strategy=query_strategy,
+                             interactive=True)
 
             # Train the model on the data that has been labeled so far:
             labeled_idx = np.where(trainset.unlabeled_mask == 0)[0]
-            labeled_loader = DataLoader(trainset, batch_size=batch_size, num_workers=0, sampler=SubsetRandomSampler(labeled_idx))
+            labeled_loader = DataLoader(trainset, batch_size=batch_size, num_workers=0,
+                                        sampler=SubsetRandomSampler(labeled_idx))
             train(crnn, device, labeled_loader, optimizer)
             test(crnn, device, test_loader)
         else:
-            idx=train(crnn, device, train_loader, optimizer)
+            idx = train(crnn, device, train_loader, optimizer)
             for sample in idx:
-                    img_name = trainset.display(sample)
-                    new_label = img_name.split(".")[0]
-                    trainset.update_label(sample, new_label)
+                img_name = trainset.display(sample)
+                new_label = img_name.split(".")[0]
+                trainset.update_label(sample, new_label)
 
             test(crnn, device, test_loader)
-
-
-
-
 
     fig = plt.figure(figsize=(12, 20))
     x = np.linspace(1, num_epochs, num_epochs)
@@ -404,26 +425,26 @@ if __name__ == '__main__':
 
     plt.show()
 
-    #Save model
-    torch.save(crnn.state_dict(),"./model_state__dict.pt")
+    # Save model
+    torch.save(crnn.state_dict(), "./model_state__dict.pt")
 
-    f=open('./AccLoss.txt','a')
+    f = open('./AccLoss.txt', 'a')
     f.write("num_epochs: " + str(num_epochs) + "\n")
-    f.write("query_size: "+str(query_size)+"\n")
-    f.write("pool_size: " + str(pool_size)+"\n")
+    f.write("query_size: " + str(query_size) + "\n")
+    f.write("pool_size: " + str(pool_size) + "\n")
     f.write("query_strategy: " + query_strategy + "\n")
     f.write("train_epoch_loss: ")
-    f.write(str(train_epoch_loss)+"\n")
+    f.write(str(train_epoch_loss) + "\n")
     f.write("test_loss_list: ")
-    f.write(str(test_loss_list)+"\n")
+    f.write(str(test_loss_list) + "\n")
     f.write("train_epoch_acc: ")
-    f.write(str(train_epoch_acc)+"\n")
+    f.write(str(train_epoch_acc) + "\n")
     f.write("test_accuracy_list: ")
-    f.write(str(test_accuracy_list)+"\n")
+    f.write(str(test_accuracy_list) + "\n")
 
     f.close()
 
-    #Take model
+    # Take model
     # model=CRNN(num_chars, rnn_hidden_size=rnn_hidden_size)
     # model.load_state_dict(torch.load("./"))
     # model.eval()
