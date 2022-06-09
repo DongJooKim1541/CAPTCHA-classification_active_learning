@@ -36,6 +36,7 @@ https://www.kaggle.com/datasets/akashguna/large-captcha-dataset
 
 ## Active learning
 
+Random sampling(Done)<br/>
 Margin sampling(Done)<br/>
 Entropy(Done)<br/>
 Least confidence(Done)
