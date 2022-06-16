@@ -45,17 +45,11 @@ Least confidence(Done)
 
 ## Experimental Results
 
-<img src = "./Query Strategy.PNG" width="50%"> 
-Query Strategy
+<img src = "./acc_loss.png" width="50%"> 
+Accuracy and loss(with baseline)
 
 <br/>
 <br/>
 
-<img src = "./Unlabeled Pool Size.PNG" width="50%"> 
-Unlabeled Pool Size
-
-<br/>
-<br/>
-
-<img src = "./Number of Queries.PNG" width="50%"> 
-Number of Queries
+<img src = "./acc_loss2.png" width="50%"> 
+Accuracy and loss(Only active learning method)
